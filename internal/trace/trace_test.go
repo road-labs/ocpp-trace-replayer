@@ -37,8 +37,8 @@ func TestReadHappy(t *testing.T) {
 	if string(tr.OCPPVersion) != "ocpp1.6" {
 		t.Errorf("OCPPVersion = %q, want ocpp1.6", tr.OCPPVersion)
 	}
-	if payload := tr.ResponseTo(0); payload == nil {
-		t.Errorf("expected ResponseTo(0) to return a payload")
+	if payload := tr.ResponseTo(tr.Records[0]); payload == nil {
+		t.Errorf("expected ResponseTo(Records[0]) to return a payload")
 	}
 }
 
@@ -53,8 +53,8 @@ func TestResponseTo_EarlierResponseDoesNotLink(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
-	if payload := tr.ResponseTo(1); payload != nil {
-		t.Errorf("ResponseTo(1) = %s, want nil", string(payload))
+	if payload := tr.ResponseTo(tr.Records[1]); payload != nil {
+		t.Errorf("ResponseTo(Records[1]) = %s, want nil", string(payload))
 	}
 }
 
@@ -70,11 +70,11 @@ func TestResponseTo_ReusedMessageIdPicksMostRecentCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
-	if got := string(tr.ResponseTo(1)); got != `{"currentTime":"a"}` {
-		t.Errorf("ResponseTo(1) = %s, want the CALLRESULT payload", got)
+	if got := string(tr.ResponseTo(tr.Records[1])); got != `{"currentTime":"a"}` {
+		t.Errorf("ResponseTo(Records[1]) = %s, want the CALLRESULT payload", got)
 	}
-	if payload := tr.ResponseTo(0); payload != nil {
-		t.Errorf("ResponseTo(0) = %s, want nil (earlier CALL is unanswered)", string(payload))
+	if payload := tr.ResponseTo(tr.Records[0]); payload != nil {
+		t.Errorf("ResponseTo(Records[0]) = %s, want nil (earlier CALL is unanswered)", string(payload))
 	}
 }
 
@@ -90,8 +90,8 @@ func TestResponseTo_FirstCALLRESULTLinks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
-	if got := string(tr.ResponseTo(0)); got != `{"n":1}` {
-		t.Errorf("ResponseTo(0) = %s, want the first CALLRESULT payload", got)
+	if got := string(tr.ResponseTo(tr.Records[0])); got != `{"n":1}` {
+		t.Errorf("ResponseTo(Records[0]) = %s, want the first CALLRESULT payload", got)
 	}
 }
 
@@ -109,11 +109,11 @@ func TestResponseTo_OppositeDirectionSameMessageID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
-	if got := string(tr.ResponseTo(0)); got != `{"status":"Accepted"}` {
-		t.Errorf("ResponseTo(0) = %s, want RemoteStartTransaction reply", got)
+	if got := string(tr.ResponseTo(tr.Records[0])); got != `{"status":"Accepted"}` {
+		t.Errorf("ResponseTo(Records[0]) = %s, want RemoteStartTransaction reply", got)
 	}
-	if got := string(tr.ResponseTo(1)); got != `{"transactionId":42}` {
-		t.Errorf("ResponseTo(1) = %s, want StartTransaction reply", got)
+	if got := string(tr.ResponseTo(tr.Records[1])); got != `{"transactionId":42}` {
+		t.Errorf("ResponseTo(Records[1]) = %s, want StartTransaction reply", got)
 	}
 }
 
@@ -126,8 +126,8 @@ func TestResponseTo_SameDirectionDoesNotLink(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
-	if payload := tr.ResponseTo(0); payload != nil {
-		t.Errorf("ResponseTo(0) = %s, want nil", string(payload))
+	if payload := tr.ResponseTo(tr.Records[0]); payload != nil {
+		t.Errorf("ResponseTo(Records[0]) = %s, want nil", string(payload))
 	}
 }
 

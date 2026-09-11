@@ -54,18 +54,18 @@ func NewReplayer(tr *trace.Trace, cw callWriter, cfg Config) *Replayer {
 
 // Run walks the trace records dispatching each CP→CSMS CALL through the callWriter.
 func (r *Replayer) Run(ctx context.Context) error {
-	for i := range r.trace.Records {
+	for _, rec := range r.trace.Records {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
 
-		if r.shouldSkip(r.trace.Records[i]) {
+		if r.shouldSkip(rec) {
 			continue
 		}
 
-		r.dispatch(ctx, i)
+		r.dispatch(ctx, rec)
 
 		if r.cfg.Delay > 0 {
 			select {
@@ -94,8 +94,7 @@ func (r *Replayer) shouldSkip(rec trace.Record) bool {
 	return false
 }
 
-func (r *Replayer) dispatch(ctx context.Context, cursor int) {
-	rec := r.trace.Records[cursor]
+func (r *Replayer) dispatch(ctx context.Context, rec trace.Record) {
 	payload := []byte(rec.Payload)
 	if len(payload) == 0 {
 		payload = []byte("{}")
@@ -130,7 +129,7 @@ func (r *Replayer) dispatch(ctx context.Context, cursor int) {
 		return
 	}
 	if r.cfg.RewriteTransactionID && rec.Action == "StartTransaction" {
-		r.recordStartTxMapping(r.trace.ResponseTo(cursor), resp)
+		r.recordStartTxMapping(r.trace.ResponseTo(rec), resp)
 	}
 }
 

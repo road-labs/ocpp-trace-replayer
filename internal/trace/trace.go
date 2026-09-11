@@ -43,6 +43,10 @@ type Record struct {
 	MessageID     string          `json:"messageId,omitempty"`
 	Action        string          `json:"action,omitempty"`
 	Payload       json.RawMessage `json:"payload,omitempty"`
+
+	// index is the record's position in Trace.Records, set by New / Read so ResponseTo(rec) can look up the linked
+	// CALLRESULT without callers having to track it. Unexported so encoding/json ignores it.
+	index int
 }
 
 // Trace is a loaded JSONL trace file: the header fields shared by every record, plus the ordered records themselves.
@@ -60,17 +64,21 @@ type Trace struct {
 }
 
 // New constructs a Trace from an already-parsed set of records - used mostly by tests that want to skip the file+JSONL
-// round trip.
+// round trip. It stamps each record's position so ResponseTo works.
 func New(records []Record) *Trace {
+	for i := range records {
+		records[i].index = i
+	}
 	tr := &Trace{Records: records}
 	tr.linkResponses()
 	return tr
 }
 
-// ResponseTo returns the payload of the CALLRESULT that answered the CALL at callIdx, or nil if no matching response
-// was found in the trace.
-func (t *Trace) ResponseTo(callIdx int) json.RawMessage {
-	return t.responses[callIdx]
+// ResponseTo returns the payload of the CALLRESULT that answered rec, or nil if no matching response was found in the
+// trace. rec must come from t.Records (or a copy of one) - the lookup uses the position stamped on the record by
+// New / Read.
+func (t *Trace) ResponseTo(rec Record) json.RawMessage {
+	return t.responses[rec.index]
 }
 
 // Read parses the JSONL file at path, checks that chargePointId / ocppVersion / transport are consistent across
@@ -109,6 +117,7 @@ func Read(path string) (*Trace, error) {
 		if err = checkConsistent("transport", &transport, rec.Transport, recordNo); err != nil {
 			return nil, err
 		}
+		rec.index = len(tr.Records)
 		tr.Records = append(tr.Records, rec)
 	}
 	if len(tr.Records) == 0 {
@@ -137,18 +146,17 @@ func Read(path string) (*Trace, error) {
 	return tr, nil
 }
 
-// callKey identifies an outstanding CALL. Direction is part of the key so a CP→CSMS CALL and a
-// CSMS→CP CALL sharing a messageId don't clobber each other in the linker — each CALLRESULT
-// looks up the outstanding CALL of the *opposite* direction with the same messageId.
+// callKey identifies an outstanding CALL. Direction is part of the key so a CP→CSMS CALL and a CSMS→CP CALL sharing a
+// messageId don't clobber each other in the linker — each CALLRESULT looks up the outstanding CALL of the *opposite*
+// direction with the same messageId.
 type callKey struct {
 	Direction string
 	MessageID string
 }
 
-// linkResponses walks records in order and, for each CALLRESULT, records its payload against the
-// most recent preceding CALL that shares the messageId and has the opposite direction. A response
-// that arrives before its CALL (or with no opposite-direction CALL outstanding) doesn't link —
-// the CALL is simply left without a stored response.
+// linkResponses walks records in order and, for each CALLRESULT, records its payload against the most recent preceding
+// CALL that shares the messageId and has the opposite direction. A response that arrives before its CALL (or with no
+// opposite-direction CALL outstanding) doesn't link — the CALL is simply left without a stored response.
 func (t *Trace) linkResponses() {
 	t.responses = map[int]json.RawMessage{}
 	outstanding := map[callKey]int{}
@@ -178,8 +186,8 @@ func oppositeDirection(d string) string {
 	return ""
 }
 
-// ParseVersion converts a schema ocppVersion string (e.g. "1.6") to the ocpp-types-go
-// Version constant used as the WebSocket subprotocol / SOAP namespace anchor.
+// ParseVersion converts a schema ocppVersion string (e.g. "1.6") to the ocpp-types-go Version constant used as the
+// WebSocket subprotocol / SOAP namespace anchor.
 func ParseVersion(p string) (ocpp.Version, error) {
 	switch p {
 	case "1.5":
@@ -195,9 +203,9 @@ func ParseVersion(p string) (ocpp.Version, error) {
 	}
 }
 
-// checkConsistent enforces that a header-like field is the same on every record. The first
-// non-empty value seen becomes the expected value; subsequent non-empty different values error.
-// Empty on later records is tolerated (the schema marks these fields optional).
+// checkConsistent enforces that a header-like field is the same on every record. The first non-empty value seen becomes
+// the expected value; subsequent non-empty different values error. Empty on later records is tolerated (the schema
+// marks these fields optional).
 func checkConsistent(field string, seen *string, value string, recordNo int) error {
 	if value == "" {
 		return nil
